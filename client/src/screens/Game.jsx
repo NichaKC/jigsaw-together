@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Confetti from '../components/Confetti.jsx';
+import { useI18n } from '../i18n.jsx';
 import { serverUrl, socket } from '../socket.js';
 import { store, targetOf } from '../gameStore.js';
 
@@ -15,20 +16,24 @@ function roundedRectPath(ctx, x, y, w, h, r) {
   else ctx.rect(x, y, w, h);
 }
 
+// How visible the ghost image is when the hint is on (0 = invisible, 1 = fully opaque).
+const HINT_ALPHA = 0.1;
+
 export default function Game({ room, me, result, onLeave }) {
+  const { t } = useI18n();
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
   const imgRef = useRef(null);
-  const live = useRef({}); // ค่าล่าสุดที่ลูป canvas ต้องใช้ (ไม่ต้องสร้างลูปใหม่ทุกครั้งที่ props เปลี่ยน)
+  const live = useRef({}); // latest values the canvas loop needs (so the loop isn't rebuilt whenever props change)
   const [, setTick] = useState(0);
-  const [showFull, setShowFull] = useState(false);
+  const [showHint, setShowHint] = useState(false); // the faint background image is hidden until asked for
   const [confirming, setConfirming] = useState(false);
 
   const finished = room.phase === 'finished';
   const players = useMemo(() => Object.fromEntries(room.players.map((p) => [p.id, p])), [room.players]);
-  live.current = { me, players, finished, showFull };
+  live.current = { me, players, finished, showHint };
 
-  // โหลดรูปจิ๊กซอจากเซิร์ฟเวอร์
+  // Load the puzzle image from the server
   useEffect(() => {
     if (!room.image) return undefined;
     const img = new Image();
@@ -37,13 +42,13 @@ export default function Game({ room, me, result, onLeave }) {
     return () => { img.onload = null; };
   }, [room.pin, room.image?.version]);
 
-  // ตัวเลขใน HUD อัปเดตทุกครึ่งวินาที
+  // Refresh the HUD numbers twice a second
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 500);
     return () => clearInterval(t);
   }, []);
 
-  // ปิดการเลื่อน/ดึงรีเฟรชของหน้าเว็บระหว่างเล่น
+  // Disable page scrolling and pull-to-refresh while playing
   useEffect(() => {
     document.body.classList.add('in-game');
     return () => document.body.classList.remove('in-game');
@@ -81,7 +86,7 @@ export default function Game({ room, me, result, onLeave }) {
       return { x: (clientX - r.left - view.ox) / view.scale, y: (clientY - r.top - view.oy) / view.scale };
     };
 
-    // ชิ้นบนสุดที่จับได้ ณ ตำแหน่งนั้น (ล็อกแล้ว หรือมีคนอื่นถืออยู่ = จับไม่ได้)
+    // Topmost piece that can be grabbed at a point (locked pieces and pieces held by others can't be)
     const hitTest = (x, y) => {
       const g = store.g;
       if (!g) return null;
@@ -103,7 +108,7 @@ export default function Game({ room, me, result, onLeave }) {
       drag = { id: p.id, offX: w.x - p.dx, offY: w.y - p.dy, pointerId: e.pointerId, lastSent: 0 };
       g.localDragId = p.id;
       g.deniedId = null;
-      p.heldBy = live.current.me; // แสดงผลทันที ถ้าเซิร์ฟเวอร์ปฏิเสธค่อยยกเลิก
+      p.heldBy = live.current.me; // show it immediately; cancel if the server denies
       p.z = Math.max(...g.pieces.map((q) => q.z)) + 1;
       canvas.style.cursor = 'grabbing';
       socket.emit('piece:grab', { id: p.id });
@@ -125,7 +130,7 @@ export default function Game({ room, me, result, onLeave }) {
       p.x = p.dx = clamp(w.x - drag.offX, 0, g.W - g.pw);
       p.y = p.dy = clamp(w.y - drag.offY, 0, g.H - g.ph);
       const now = performance.now();
-      if (now - drag.lastSent >= 33) { // ส่งไม่เกินประมาณ 30 ครั้ง/วินาที
+      if (now - drag.lastSent >= 33) { // send at most ~30 times per second
         drag.lastSent = now;
         socket.volatile.emit('piece:move', { id: p.id, x: p.x, y: p.y });
       }
@@ -149,17 +154,17 @@ export default function Game({ room, me, result, onLeave }) {
     canvas.addEventListener('pointerup', endDrag);
     canvas.addEventListener('pointercancel', endDrag);
 
-    /* ------------------------------ วาดภาพทุกเฟรม ------------------------------ */
+    /* ------------------------------ draw every frame ------------------------------ */
 
     const draw = (now) => {
       const g = store.g;
-      const { me: myId, players: byId, finished: done, showFull: full } = live.current;
+      const { me: myId, players: byId, finished: done, showHint: hint } = live.current;
       ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
       ctx.clearRect(0, 0, view.w, view.h);
       if (!g) return;
       if (!view.scale || view.scale < 0) layout();
 
-      // ชิ้นที่ถูกปฏิเสธ (มีคนจับตัดหน้า) → ยกเลิกการลากของเรา
+      // Piece was denied (someone grabbed it first) -> cancel our drag
       if (drag && g.deniedId === drag.id) {
         const p = g.pieces[drag.id];
         if (p.heldBy === myId) p.heldBy = null;
@@ -171,27 +176,30 @@ export default function Game({ room, me, result, onLeave }) {
       ctx.save();
       ctx.translate(view.ox, view.oy);
       ctx.scale(view.scale, view.scale);
-      const px = 1 / view.scale; // 1 พิกเซลหน้าจอ เป็นหน่วยโลก
+      const px = 1 / view.scale; // one screen pixel, in world units
       const img = imgRef.current;
       const M = g.margin;
 
-      // โต๊ะ + กระดานจิ๊กซอ
+      // table + puzzle board
       ctx.fillStyle = '#F6F7FD';
       roundedRectPath(ctx, 0, 0, g.W, g.H, 14 * px);
       ctx.fill();
       ctx.fillStyle = '#E2E7F7';
       ctx.fillRect(M, M, 1, g.a);
-      if (img) {
-        ctx.globalAlpha = full ? 0.6 : 0.1;
-        ctx.drawImage(img, M, M, 1, g.a);
-        ctx.globalAlpha = 1;
+      // The hint (faint picture + cell grid) is only drawn when the player turns it on.
+      if (hint) {
+        if (img) {
+          ctx.globalAlpha = HINT_ALPHA;
+          ctx.drawImage(img, M, M, 1, g.a);
+          ctx.globalAlpha = 1;
+        }
+        ctx.strokeStyle = 'rgba(29,33,80,0.12)';
+        ctx.lineWidth = px;
+        for (let c = 0; c <= g.cols; c++) { ctx.beginPath(); ctx.moveTo(M + c * g.pw, M); ctx.lineTo(M + c * g.pw, M + g.a); ctx.stroke(); }
+        for (let r = 0; r <= g.rows; r++) { ctx.beginPath(); ctx.moveTo(M, M + r * g.ph); ctx.lineTo(M + 1, M + r * g.ph); ctx.stroke(); }
       }
-      ctx.strokeStyle = 'rgba(29,33,80,0.12)';
-      ctx.lineWidth = px;
-      for (let c = 0; c <= g.cols; c++) { ctx.beginPath(); ctx.moveTo(M + c * g.pw, M); ctx.lineTo(M + c * g.pw, M + g.a); ctx.stroke(); }
-      for (let r = 0; r <= g.rows; r++) { ctx.beginPath(); ctx.moveTo(M, M + r * g.ph); ctx.lineTo(M + 1, M + r * g.ph); ctx.stroke(); }
 
-      // เลื่อนตำแหน่งที่วาดเข้าหาตำแหน่งจริง (ชิ้นของอีกคนจึงขยับลื่น)
+      // Ease the drawn position toward the real one (so other players' pieces glide)
       for (const p of g.pieces) {
         if (g.localDragId === p.id) { p.dx = p.x; p.dy = p.y; continue; }
         p.dx += (p.x - p.dx) * 0.35;
@@ -208,7 +216,7 @@ export default function Game({ room, me, result, onLeave }) {
       };
 
       if (done && img) {
-        ctx.drawImage(img, M, M, 1, g.a); // จบแล้ว: โชว์ภาพเต็มไม่มีรอยต่อ
+        ctx.drawImage(img, M, M, 1, g.a); // finished: show the full picture with no seams
       } else {
         for (const p of g.pieces) if (p.locked) paint(p, 0.5 * px);
       }
@@ -228,7 +236,7 @@ export default function Game({ room, me, result, onLeave }) {
         paint(p);
         ctx.restore();
 
-        // ขอบสีของคนที่จับอยู่ (ทุกคนเห็นตรงกัน)
+        // border in the holder's color (everyone sees the same)
         ctx.lineJoin = 'round';
         if (holder) {
           ctx.strokeStyle = holder.color;
@@ -240,7 +248,7 @@ export default function Game({ room, me, result, onLeave }) {
           ctx.strokeRect(p.dx, p.dy, g.pw, g.ph);
         }
 
-        // ป้ายชื่อบนชิ้นที่เพื่อนกำลังถือ
+        // name tag on pieces a friend is holding
         if (holder && holder.id !== myId) {
           const fs = 12 * px;
           ctx.font = `600 ${fs}px "IBM Plex Sans Thai", system-ui, sans-serif`;
@@ -258,7 +266,7 @@ export default function Game({ room, me, result, onLeave }) {
         }
       }
 
-      // วาบสีเมื่อชิ้นเข้าที่
+      // color flash when a piece snaps into place
       g.flashes = g.flashes.filter((f) => now - f.t0 < 600);
       for (const f of g.flashes) {
         const p = g.pieces[f.id];
@@ -312,14 +320,14 @@ export default function Game({ room, me, result, onLeave }) {
       <header className="hud">
         <div className="hud-stat" aria-live="off">
           <strong>{fmtTime(elapsed)}</strong>
-          <span>{locked}/{total} ชิ้น</span>
+          <span>{t('game.progress', { done: locked, total })}</span>
         </div>
 
-        <ul className="hud-players" aria-label="ผู้เล่น">
+        <ul className="hud-players" aria-label={t('game.playersAria')}>
           {room.players.map((p) => (
             <li key={p.id} className={p.connected ? '' : 'is-off'} style={{ '--c': p.color }}>
               <span className="dot" aria-hidden="true" />
-              <span className="hud-name">{p.name}{p.id === me ? ' (คุณ)' : ''}</span>
+              <span className="hud-name">{p.name}{p.id === me ? ` (${t('game.you')})` : ''}</span>
               <span className="hud-count">{g?.stats[p.id]?.count ?? 0}</span>
             </li>
           ))}
@@ -329,14 +337,14 @@ export default function Game({ room, me, result, onLeave }) {
           <button
             type="button"
             className="btn btn-quiet btn-sm"
-            aria-pressed={showFull}
-            onClick={() => setShowFull((v) => !v)}
+            aria-pressed={showHint}
+            onClick={() => setShowHint((v) => !v)}
           >
-            ดูภาพเต็ม
+            {showHint ? t('game.hintHide') : t('game.hintShow')}
           </button>
           {!finished && (
             <button type="button" className="btn btn-quiet btn-sm" onClick={() => setConfirming(true)}>
-              ออก
+              {t('game.leave')}
             </button>
           )}
         </div>
@@ -344,17 +352,17 @@ export default function Game({ room, me, result, onLeave }) {
       </header>
 
       <div className="stage" ref={wrapRef}>
-        <canvas ref={canvasRef} aria-label="กระดานจิ๊กซอ ลากชิ้นส่วนไปวางให้ตรงกับภาพ" />
+        <canvas ref={canvasRef} aria-label={t('game.canvasAria')} />
       </div>
 
       {confirming && (
         <div className="modal-backdrop">
-          <div className="modal modal-sm" role="alertdialog" aria-modal="true" aria-label="ออกจากเกม">
-            <h2 className="modal-title">ออกจากเกมนี้?</h2>
-            <p className="muted">เพื่อนจะเล่นต่อได้ แต่คุณกลับเข้ามาที่เดิมไม่ได้ถ้ากดออกแล้ว</p>
+          <div className="modal modal-sm" role="alertdialog" aria-modal="true" aria-label={t('game.leaveTitle')}>
+            <h2 className="modal-title">{t('game.leaveTitle')}</h2>
+            <p className="muted">{t('game.leaveBody')}</p>
             <div className="modal-actions">
-              <button type="button" className="btn btn-quiet" onClick={() => setConfirming(false)}>เล่นต่อ</button>
-              <button type="button" className="btn btn-danger" onClick={onLeave}>ออกจากเกม</button>
+              <button type="button" className="btn btn-quiet" onClick={() => setConfirming(false)}>{t('game.keepPlaying')}</button>
+              <button type="button" className="btn btn-danger" onClick={onLeave}>{t('game.leaveConfirm')}</button>
             </div>
           </div>
         </div>
@@ -363,22 +371,22 @@ export default function Game({ room, me, result, onLeave }) {
       {finished && (
         <>
           <Confetti />
-          <section className="finish" role="dialog" aria-label="ต่อภาพสำเร็จ">
-            <h2>ต่อภาพสำเร็จแล้ว!</h2>
-            <p className="finish-time">ใช้เวลา {fmtTime(elapsed)}</p>
+          <section className="finish" role="dialog" aria-label={t('game.done')}>
+            <h2>{t('game.done')}</h2>
+            <p className="finish-time">{t('game.time', { time: fmtTime(elapsed) })}</p>
             {ranking.length > 0 && (
               <ul className="finish-list">
                 {ranking.map((s) => (
                   <li key={s.name} style={{ '--c': s.color }}>
                     <span className="dot" aria-hidden="true" />
                     <span>{s.name}</span>
-                    <strong>{s.count} ชิ้น</strong>
+                    <strong>{t('game.pieces', { n: s.count })}</strong>
                   </li>
                 ))}
               </ul>
             )}
             <button type="button" className="btn btn-primary btn-block" onClick={onLeave}>
-              กลับหน้าหลัก
+              {t('game.home')}
             </button>
           </section>
         </>

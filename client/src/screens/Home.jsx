@@ -1,17 +1,22 @@
 import { useState } from 'react';
+import LangToggle from '../components/LangToggle.jsx';
 import Logo from '../components/Logo.jsx';
-import { NAME_MAX, PIN_LENGTH, errorText } from '../lib/constants.js';
+import { useI18n } from '../i18n.jsx';
+import { NAME_MAX, PIN_LENGTH } from '../lib/constants.js';
 import { loadName, saveName } from '../lib/session.js';
 
 export default function Home({ actions, busy, error, clearError }) {
+  const { t, te } = useI18n();
   const [name, setName] = useState(loadName);
-  const [pin, setPin] = useState(() => new URLSearchParams(location.search).get('pin')?.replace(/\D/g, '').slice(0, PIN_LENGTH) || '');
-  const [localError, setLocalError] = useState('');
+  const [pin, setPin] = useState(
+    () => new URLSearchParams(location.search).get('pin')?.replace(/\D/g, '').slice(0, PIN_LENGTH) || '',
+  );
+  const [localError, setLocalError] = useState(''); // an error code, translated at render time
 
   const trimmed = name.trim();
   const needName = () => {
     if (trimmed) return false;
-    setLocalError('กรุณาใส่ชื่อผู้เล่นก่อน');
+    setLocalError('BAD_NAME');
     return true;
   };
 
@@ -25,44 +30,46 @@ export default function Home({ actions, busy, error, clearError }) {
     e.preventDefault();
     clearError();
     if (needName()) return;
-    if (pin.length !== PIN_LENGTH) return setLocalError(`PIN ต้องเป็นตัวเลข ${PIN_LENGTH} หลัก`);
+    if (pin.length !== PIN_LENGTH) return setLocalError('BAD_PIN');
     saveName(trimmed);
     actions.join(pin, trimmed);
   };
 
-  const message = localError || (error ? errorText(error) : '');
+  const code = localError || error;
 
   return (
     <main className="home">
+      <LangToggle className="lang-corner" />
+
       <header className="home-head">
         <Logo />
-        <h1>จิ๊กซอด้วยกัน</h1>
-        <p>ต่อภาพกับเพื่อนแบบเรียลไทม์ 2–4 คน</p>
+        <h1>{t('app.name')}</h1>
+        <p>{t('app.tagline')}</p>
       </header>
 
-      <section className="panel home-panel" aria-label="เริ่มเล่น">
+      <section className="panel home-panel" aria-label={t('home.start')}>
         <label className="field">
-          <span className="field-label">ชื่อของคุณ</span>
+          <span className="field-label">{t('home.nameLabel')}</span>
           <input
             type="text"
             value={name}
             maxLength={NAME_MAX}
             autoComplete="nickname"
-            placeholder="เช่น Clash"
+            placeholder={t('home.namePlaceholder')}
             onChange={(e) => { setName(e.target.value); setLocalError(''); }}
           />
-          <span className="field-hint">เปลี่ยนชื่อได้เฉพาะหน้านี้ พอเข้าห้องแล้วจะเปลี่ยนไม่ได้</span>
+          <span className="field-hint">{t('home.nameHint')}</span>
         </label>
 
         <button type="button" className="btn btn-primary btn-block" onClick={create} disabled={busy}>
-          สร้างห้องใหม่
+          {t('home.create')}
         </button>
 
-        <div className="or" aria-hidden="true"><span>หรือเข้าห้องของเพื่อน</span></div>
+        <div className="or" aria-hidden="true"><span>{t('home.or')}</span></div>
 
         <form className="join-row" onSubmit={join}>
           <label className="field grow">
-            <span className="field-label">PIN ห้อง</span>
+            <span className="field-label">{t('home.pinLabel')}</span>
             <input
               className="pin-input"
               type="text"
@@ -74,10 +81,10 @@ export default function Home({ actions, busy, error, clearError }) {
               onChange={(e) => { setPin(e.target.value.replace(/\D/g, '').slice(0, PIN_LENGTH)); setLocalError(''); }}
             />
           </label>
-          <button type="submit" className="btn btn-secondary" disabled={busy}>เข้าร่วม</button>
+          <button type="submit" className="btn btn-secondary" disabled={busy}>{t('home.join')}</button>
         </form>
 
-        {message && <p role="alert" className="form-error">{message}</p>}
+        {code && <p role="alert" className="form-error">{te(code)}</p>}
       </section>
     </main>
   );

@@ -24,23 +24,23 @@ export function useRoom() {
     savePin(snap.room.pin);
   }, []);
 
-  const exit = useCallback((message = '') => {
+  const exit = useCallback((noticeKey = '') => {
     setRoom(null);
     setMe(null);
     setResult(null);
     clearGame();
     clearPin();
-    if (message) setNotice(message);
+    if (noticeKey) setNotice(noticeKey); // a key like 'kicked', translated in App
   }, []);
 
   useEffect(() => {
-    // เชื่อมต่อ (หรือต่อใหม่หลังหลุด) แล้วถ้ามีห้องค้างอยู่ให้กลับเข้าห้องเดิมพร้อมสถานะล่าสุด
+    // On connect (or reconnect after a drop), if a room is saved, rejoin it and get the latest state.
     const rejoin = async () => {
       const pin = loadPin();
       if (!pin) return setRestoring(false);
       const res = await request('room:rejoin', { pin, clientId: getClientId() });
       if (res.ok) enter(res);
-      else exit('ห้องนี้ปิดไปแล้ว หรือคุณถูกนำออกจากห้อง');
+      else exit('closed');
       setRestoring(false);
     };
 
@@ -57,7 +57,7 @@ export function useRoom() {
       setResult(res);
       setRoom(r);
     };
-    const onKicked = () => exit('หัวหน้าห้องเชิญคุณออกจากห้อง');
+    const onKicked = () => exit('kicked');
 
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
@@ -85,7 +85,7 @@ export function useRoom() {
     };
   }, [enter, exit]);
 
-  // ครอบทุก action: ตั้ง busy, ล้าง error เก่า, เก็บ error code ใหม่
+  // Wraps every action: sets busy, clears the old error, stores the new error code.
   const run = useCallback(async (fn) => {
     setBusy(true);
     setError('');

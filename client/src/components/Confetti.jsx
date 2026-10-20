@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 
 const COLORS = ['#FF3B7F', '#00B7D4', '#FFB300', '#8A5CFF', '#2ED573', '#FF6A2B', '#1E90FF'];
 
-// กระดาษสีๆ ฉลอง: ยิงจากมุมล่างสองข้าง แล้วโปรยลงมาประมาณ 5 วินาที
+// Celebration confetti: bursts from both bottom corners, then rains down for about 5 seconds.
 export default function Confetti() {
   const ref = useRef(null);
 
@@ -63,7 +63,7 @@ export default function Confetti() {
         ctx.save();
         ctx.translate(p.x, p.y);
         ctx.rotate(p.rot);
-        ctx.scale(1, Math.cos(p.tilt)); // หมุนพลิกให้ดูเหมือนกระดาษปลิว
+        ctx.scale(1, Math.cos(p.tilt)); // flip the paper so it looks like it's fluttering
         ctx.fillStyle = p.color;
         ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
         ctx.restore();

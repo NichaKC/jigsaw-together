@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useI18n } from '../i18n.jsx';
 import { ASPECTS, aspectParts } from '../lib/constants.js';
 
 const OUT_LONG_SIDE = 1200;
 
-// ครอปรูปตามสัดส่วนที่เลือก: ลากเพื่อเลื่อน, สไลเดอร์/ล้อเมาส์เพื่อซูม
+// Crop an image to the chosen aspect ratio: drag to pan, slider or mouse wheel to zoom.
 export default function Cropper({ file, initialAspect, onCancel, onConfirm }) {
+  const { t } = useI18n();
   const [url] = useState(() => URL.createObjectURL(file));
   const [img, setImg] = useState(null); // { el, w, h }
   const [aspect, setAspect] = useState(initialAspect || null);
   const [zoom, setZoom] = useState(1);
-  const [center, setCenter] = useState({ x: 0, y: 0 }); // จุดกึ่งกลางกรอบ (พิกเซลของรูปจริง)
+  const [center, setCenter] = useState({ x: 0, y: 0 }); // center of the frame (in the source image's pixels)
   const [box, setBox] = useState({ w: 320, h: 420 });
   const [error, setError] = useState('');
   const [working, setWorking] = useState(false);
@@ -25,7 +27,7 @@ export default function Cropper({ file, initialAspect, onCancel, onConfirm }) {
       setCenter({ x: el.naturalWidth / 2, y: el.naturalHeight / 2 });
       setAspect((prev) => prev ?? (el.naturalWidth >= el.naturalHeight ? '4:3' : '3:4'));
     };
-    el.onerror = () => setError('เปิดไฟล์รูปนี้ไม่ได้ ลองใช้ไฟล์ JPG หรือ PNG');
+    el.onerror = () => setError('openError');
     el.src = url;
   }, [url]);
 
@@ -58,21 +60,21 @@ export default function Cropper({ file, initialAspect, onCancel, onConfirm }) {
   if (!img || !frame) {
     return (
       <div className="modal-backdrop">
-        <div className="modal" role="dialog" aria-modal="true" aria-label="ครอปรูป">
+        <div className="modal" role="dialog" aria-modal="true" aria-label={t('crop.dialog')}>
           {error ? (
             <>
-              <p role="alert" className="form-error">{error}</p>
-              <button type="button" className="btn btn-quiet" onClick={onCancel}>ปิด</button>
+              <p role="alert" className="form-error">{t(`crop.${error}`)}</p>
+              <button type="button" className="btn btn-quiet" onClick={onCancel}>{t('crop.close')}</button>
             </>
           ) : (
-            <p className="muted">กำลังเปิดรูป…</p>
+            <p className="muted">{t('crop.opening')}</p>
           )}
         </div>
       </div>
     );
   }
 
-  const minScale = Math.max(frame.w / img.w, frame.h / img.h); // ขนาดที่รูปเต็มกรอบพอดี
+  const minScale = Math.max(frame.w / img.w, frame.h / img.h); // scale at which the image exactly covers the frame
   const scale = minScale * zoom;
   const clampCenter = (c) => {
     const hw = frame.w / 2 / scale;
@@ -101,7 +103,7 @@ export default function Cropper({ file, initialAspect, onCancel, onConfirm }) {
   const confirm = () => {
     setWorking(true);
     const [aw, ah] = aspectParts(aspect);
-    const k = Math.min(1, OUT_LONG_SIDE / Math.max(cropW, cropH)); // ไม่ขยายเกินความละเอียดจริง
+    const k = Math.min(1, OUT_LONG_SIDE / Math.max(cropW, cropH)); // never upscale beyond the real resolution
     const outW = Math.max(2, Math.round(cropW * k));
     const outH = Math.max(2, Math.round((outW * ah) / aw));
     const canvas = document.createElement('canvas');
@@ -114,7 +116,7 @@ export default function Cropper({ file, initialAspect, onCancel, onConfirm }) {
     canvas.toBlob(
       (blob) => {
         setWorking(false);
-        if (!blob) return setError('แปลงรูปไม่สำเร็จ ลองใหม่อีกครั้ง');
+        if (!blob) return setError('exportError');
         onConfirm(blob, aspect);
       },
       'image/jpeg',
@@ -124,10 +126,10 @@ export default function Cropper({ file, initialAspect, onCancel, onConfirm }) {
 
   return (
     <div className="modal-backdrop">
-      <div className="modal" role="dialog" aria-modal="true" aria-label="ครอปรูปสำหรับจิ๊กซอ">
-        <h2 className="modal-title">เลือกสัดส่วนของจิ๊กซอ</h2>
+      <div className="modal" role="dialog" aria-modal="true" aria-label={t('crop.dialog')}>
+        <h2 className="modal-title">{t('crop.title')}</h2>
 
-        <div className="ratio-row" role="group" aria-label="สัดส่วนภาพ">
+        <div className="ratio-row" role="group" aria-label={t('crop.ratioGroup')}>
           {ASPECTS.map((a) => {
             const [aw, ah] = aspectParts(a);
             const k = 22 / Math.max(aw, ah);
@@ -152,7 +154,7 @@ export default function Cropper({ file, initialAspect, onCancel, onConfirm }) {
           >
             <img
               src={url}
-              alt="รูปที่กำลังครอป"
+              alt={t('crop.alt')}
               draggable="false"
               style={{
                 width: img.w * scale,
@@ -165,16 +167,16 @@ export default function Cropper({ file, initialAspect, onCancel, onConfirm }) {
         </div>
 
         <label className="zoom">
-          <span>ซูม</span>
+          <span>{t('crop.zoom')}</span>
           <input type="range" min="1" max="4" step="0.01" value={zoom} onChange={(e) => setZoom(Number(e.target.value))} />
         </label>
-        {cropW < 400 && <p className="muted small">รูปนี้ความละเอียดค่อนข้างต่ำ จิ๊กซอจะไม่คมนัก</p>}
-        {error && <p role="alert" className="form-error">{error}</p>}
+        {cropW < 400 && <p className="muted small">{t('crop.lowRes')}</p>}
+        {error && <p role="alert" className="form-error">{t(`crop.${error}`)}</p>}
 
         <div className="modal-actions">
-          <button type="button" className="btn btn-quiet" onClick={onCancel}>ยกเลิก</button>
+          <button type="button" className="btn btn-quiet" onClick={onCancel}>{t('crop.cancel')}</button>
           <button type="button" className="btn btn-primary" onClick={confirm} disabled={working}>
-            {working ? 'กำลังเตรียมรูป…' : 'ใช้รูปนี้'}
+            {working ? t('crop.working') : t('crop.confirm')}
           </button>
         </div>
       </div>

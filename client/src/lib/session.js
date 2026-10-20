@@ -1,5 +1,5 @@
-// clientId เก็บใน sessionStorage = แยกกันต่อแท็บ (เปิด 2 แท็บทดสอบเป็นคนละคนได้)
-// ชื่อผู้เล่นเก็บใน localStorage เพื่อให้จำชื่อล่าสุดไว้
+// clientId lives in sessionStorage, so it's per tab (two tabs = two different players for testing).
+// The player name and language live in localStorage so they're remembered.
 const mem = {};
 const safe = (store, key, value) => {
   try {
@@ -19,7 +19,7 @@ const randomHex = (bytes) =>
 export function getClientId() {
   let id = safe(sessionStorage, 'jigsaw.clientId');
   if (!id) {
-    id = randomHex(16); // ไม่ใช้ randomUUID เพราะใช้ไม่ได้บน http://192.168.x.x
+    id = randomHex(16); // not randomUUID: it's unavailable on plain http://192.168.x.x
     safe(sessionStorage, 'jigsaw.clientId', id);
   }
   return id;
@@ -29,8 +29,10 @@ export const savePin = (pin) => safe(sessionStorage, 'jigsaw.pin', pin);
 export const clearPin = () => safe(sessionStorage, 'jigsaw.pin', null);
 export const loadName = () => safe(localStorage, 'jigsaw.name') || '';
 export const saveName = (name) => safe(localStorage, 'jigsaw.name', name);
+export const loadLang = () => (safe(localStorage, 'jigsaw.lang') === 'th' ? 'th' : 'en'); // English by default
+export const saveLang = (lang) => safe(localStorage, 'jigsaw.lang', lang);
 
-// คัดลอกข้อความ (clipboard API ใช้ไม่ได้บน http ที่ไม่ใช่ localhost จึงมีทางสำรอง)
+// Copy text (the clipboard API doesn't work on non-localhost http, so there's a fallback).
 export async function copyText(text) {
   try {
     await navigator.clipboard.writeText(text);

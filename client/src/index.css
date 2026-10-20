@@ -11,7 +11,7 @@
   --danger: #e0304f;
   --warn: #b86e00;
 
-  /* สีผู้เล่น */
+  /* player colors */
   --p1: #ff3b7f;
   --p2: #00b7d4;
   --p3: #ffb300;
@@ -108,8 +108,14 @@ input[type='text']:focus { border-color: var(--accent); outline: none; box-shado
 .panel { background: var(--surface); border-radius: var(--r-lg); padding: 22px; display: flex; flex-direction: column; gap: 16px; }
 .panel h2 { font-size: 1.2rem; }
 
+/* ---------- Language toggle ---------- */
+.lang-toggle { flex-wrap: nowrap; }
+.lang-toggle .seg { padding: 4px 12px; min-height: 34px; font-size: 0.85rem; }
+.lang-corner { position: absolute; top: calc(14px + env(safe-area-inset-top)); right: 14px; }
+.lobby-top { display: flex; justify-content: flex-end; }
+
 /* ---------- Home ---------- */
-.home { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; padding: 28px 18px; }
+.home { position: relative; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; padding: 28px 18px; }
 .home-head { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .home-head h1 { font-size: clamp(2.1rem, 8vw, 2.9rem); font-weight: 600; letter-spacing: -0.01em; }
 .home-head p { color: var(--ink-2); }

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useI18n } from './i18n.jsx';
 import Game from './screens/Game.jsx';
 import Home from './screens/Home.jsx';
 import Lobby from './screens/Lobby.jsx';
@@ -6,19 +7,20 @@ import { useRoom } from './useRoom.js';
 
 export default function App() {
   const r = useRoom();
+  const { t } = useI18n();
 
   useEffect(() => {
     if (!r.notice) return undefined;
-    const t = setTimeout(r.dismissNotice, 6000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(r.dismissNotice, 6000);
+    return () => clearTimeout(timer);
   }, [r.notice, r.dismissNotice]);
 
   let screen;
   if (r.restoring) {
     screen = (
       <main className="splash" role="status">
-        <p>กำลังกลับเข้าห้อง…</p>
-        <button type="button" className="btn btn-quiet" onClick={r.cancelRestore}>ยกเลิก</button>
+        <p>{t('restore.text')}</p>
+        <button type="button" className="btn btn-quiet" onClick={r.cancelRestore}>{t('restore.cancel')}</button>
       </main>
     );
   } else if (!r.room) {
@@ -31,11 +33,11 @@ export default function App() {
 
   return (
     <>
-      {!r.connected && <div className="banner" role="status">กำลังเชื่อมต่อเซิร์ฟเวอร์…</div>}
+      {!r.connected && <div className="banner" role="status">{t('conn.connecting')}</div>}
       {r.notice && (
         <div className="toast" role="status">
-          <span>{r.notice}</span>
-          <button type="button" className="btn btn-quiet btn-sm" onClick={r.dismissNotice}>ปิด</button>
+          <span>{t(`notice.${r.notice}`)}</span>
+          <button type="button" className="btn btn-quiet btn-sm" onClick={r.dismissNotice}>{t('notice.dismiss')}</button>
         </div>
       )}
       {screen}

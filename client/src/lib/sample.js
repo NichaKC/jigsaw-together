@@ -1,7 +1,7 @@
 import { aspectParts } from './constants.js';
 
-// สร้างรูปตัวอย่างสำหรับทดสอบ (วาดด้วย canvas ไม่ต้องมีไฟล์รูป)
-// ใช้ seed คงที่ ทุกชิ้นมีลวดลายต่างกันพอให้แยกออก
+// Builds a sample image for testing (drawn on a canvas, no image file needed).
+// Plenty of varied shapes so individual pieces are easy to tell apart.
 function rng(seed) {
   let s = seed >>> 0;
   return () => {
@@ -30,7 +30,7 @@ export function makeSampleBlob(aspect = '4:3') {
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H);
 
-  // ดาว/จุดสว่างกระจาย
+  // scattered stars
   for (let i = 0; i < 120; i++) {
     ctx.fillStyle = `rgba(255,255,255,${0.2 + rand() * 0.6})`;
     ctx.beginPath();
@@ -38,13 +38,13 @@ export function makeSampleBlob(aspect = '4:3') {
     ctx.fill();
   }
 
-  // ดวงอาทิตย์
+  // sun
   ctx.fillStyle = '#FFF3B0';
   ctx.beginPath();
   ctx.arc(W * 0.7, H * 0.38, Math.min(W, H) * 0.14, 0, Math.PI * 2);
   ctx.fill();
 
-  // ภูเขาหลายชั้น
+  // layered mountains
   const layers = ['#3A2D9C', '#2B2278', '#1D1856', '#120F3B'];
   layers.forEach((color, i) => {
     const base = H * (0.5 + i * 0.12);
@@ -64,7 +64,7 @@ export function makeSampleBlob(aspect = '4:3') {
     ctx.fill();
   });
 
-  // ลูกบอลสีสดกระจายทั่วภาพ ช่วยให้ชิ้นส่วนแต่ละชิ้นต่างกัน
+  // bright blobs across the image so each piece looks different
   const palette = ['#FF3B7F', '#00B7D4', '#FFB300', '#8A5CFF', '#2ED573', '#FF6A2B'];
   for (let i = 0; i < 38; i++) {
     ctx.fillStyle = palette[Math.floor(rand() * palette.length)];

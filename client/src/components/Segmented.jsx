@@ -1,4 +1,4 @@
-// ตัวเลือกแบบปุ่มต่อกัน (ใช้กับจำนวนผู้เล่น / ความยาก / สัดส่วนภาพ)
+// Joined-button option picker (player count, difficulty, language).
 export default function Segmented({ label, options, value, onChange, disabled, className = '' }) {
   return (
     <div className={`segmented ${className}`} role="group" aria-label={label}>

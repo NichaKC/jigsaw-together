@@ -2,7 +2,7 @@
   "name": "jigsaw-coop",
   "version": "1.0.0",
   "private": true,
-  "description": "เกมต่อจิ๊กซอร่วมกันแบบเรียลไทม์ (2-4 คน)",
+  "description": "Real-time cooperative jigsaw puzzle game (2-4 players)",
   "workspaces": ["server", "client"],
   "scripts": {
     "dev": "concurrently -n server,client -c blue,magenta \"npm run dev -w server\" \"npm run dev -w client\"",

@@ -23,7 +23,7 @@ app.use((_req, res, next) => {
 
 app.get('/healthz', (_req, res) => res.send('ok'));
 
-// รูปจิ๊กซอของห้อง (ต้องรู้ PIN ถึงจะดึงได้) version เปลี่ยนทุกครั้งที่อัปโหลดใหม่
+// The room's puzzle image (you need the PIN to fetch it). The version changes on every upload.
 app.get('/api/rooms/:pin/image', (req, res) => {
   const room = rooms.get(req.params.pin);
   if (!room?.image) return res.sendStatus(404);
@@ -34,7 +34,7 @@ app.get('/api/rooms/:pin/image', (req, res) => {
   res.send(room.image.buffer);
 });
 
-// โปรดักชัน: เสิร์ฟหน้าเว็บที่ build แล้ว (client/dist) จากเซิร์ฟเวอร์เดียวกัน
+// Production: serve the built web app (client/dist) from this same server.
 const dist = path.resolve(__dirname, '../client/dist');
 if (fs.existsSync(path.join(dist, 'index.html'))) {
   app.use(express.static(dist));
@@ -51,12 +51,12 @@ const io = new Server(server, {
     : undefined,
 });
 
-/* --------------------------- กันเดา PIN (rate limit) -------------------------- */
+/* ------------------------ PIN guessing protection (rate limit) ------------------------ */
 
 const failures = new Map(); // ip -> { count, resetAt }
 
 function clientIp(socket) {
-  // หลัง proxy (Render/Railway) ใช้ x-forwarded-for; ถ้าไม่ได้อยู่หลัง proxy ค่านี้ปลอมได้
+  // Behind a proxy (Render/Railway) use x-forwarded-for; without a proxy this header can be spoofed.
   const xf = socket.handshake.headers['x-forwarded-for'];
   return (typeof xf === 'string' ? xf.split(',')[0].trim() : socket.handshake.address) || 'unknown';
 }
@@ -134,7 +134,7 @@ function releaseHeld(room, player) {
   }
 }
 
-// เอาผู้เล่นออกจากห้องจริงๆ (กดออกเอง / ถูกเตะ / หมดเวลารอรีคอนเนกต์)
+// Actually remove a player from the room (left on their own / kicked / reconnect grace expired).
 function dropPlayer(room, player) {
   clearTimeout(player.timer);
   releaseHeld(room, player);
@@ -151,14 +151,14 @@ function dropPlayer(room, player) {
     return;
   }
   if (room.hostId === player.id) {
-    // โอนหัวหน้าห้องให้คนที่เข้าก่อนถัดไป (เลือกคนที่ยังออนไลน์ก่อน)
+    // Hand host over to the next-earliest player (prefer someone still online).
     room.hostId = (room.players.find((p) => p.connected) ?? room.players[0]).id;
   }
   room.lastActivity = Date.now();
   broadcastRoom(room);
 }
 
-// ลงทะเบียน handler: รับ payload เป็น object เสมอ และมี ack ให้เรียกได้เสมอ
+// Register a handler: payload is always an object and ack is always callable.
 function on(socket, event, fn) {
   socket.on(event, (...args) => {
     const cb = typeof args[args.length - 1] === 'function' ? args.pop() : null;
@@ -179,7 +179,7 @@ io.on('connection', (socket) => {
   socket.data = {};
   const imageUploadAt = { t: 0 };
 
-  /* ---- สร้าง / เข้า / ออก ---- */
+  /* ---- create / join / leave ---- */
 
   on(socket, 'room:create', ({ name, clientId }, ack) => {
     const ip = clientIp(socket);
@@ -218,7 +218,7 @@ io.on('connection', (socket) => {
     ack(snapshot(room, player));
   });
 
-  // เชื่อมต่อใหม่หลังหลุด/รีเฟรช: พิสูจน์ตัวตนด้วย clientId (ความลับของแต่ละแท็บ)
+  // Reconnect after a drop/refresh: prove identity with clientId (a per-tab secret).
   on(socket, 'room:rejoin', ({ pin, clientId }, ack) => {
     const ip = clientIp(socket);
     if (isBlocked(ip)) return ack(err('RATE_LIMIT'));
@@ -259,7 +259,7 @@ io.on('connection', (socket) => {
     ack({ ok: true });
   });
 
-  /* ---- ตั้งค่าห้อง / รูป ---- */
+  /* ---- room settings / image ---- */
 
   on(socket, 'room:settings', (p, ack) => {
     const c = ctxOf(socket);
@@ -283,7 +283,7 @@ io.on('connection', (socket) => {
     ack({ ok: true });
   });
 
-  // ใครใน lobby ก็แนบรูปได้ (รูปล่าสุดแทนรูปเดิม) — client ครอปเป็น JPEG ตามสัดส่วนมาให้แล้ว
+  // Anyone in the lobby can add an image (the latest replaces the old one). The client already crops it to a JPEG of the chosen ratio.
   on(socket, 'room:image', ({ aspect, data }, ack) => {
     const c = ctxOf(socket);
     if (!c) return ack(err('NO_ROOM'));
@@ -306,7 +306,7 @@ io.on('connection', (socket) => {
     ack({ ok: true });
   });
 
-  /* ---- เริ่มเกม ---- */
+  /* ---- start game ---- */
 
   on(socket, 'game:start', (_p, ack) => {
     const c = ctxOf(socket);
@@ -325,7 +325,7 @@ io.on('connection', (socket) => {
     ack({ ok: true });
   });
 
-  /* ---- ในเกม: เซิร์ฟเวอร์เป็นผู้ตัดสินตำแหน่งและการล็อกชิ้นส่วน ---- */
+  /* ---- in game: the server decides piece positions and locking ---- */
 
   const inGame = () => {
     const c = ctxOf(socket);
@@ -370,11 +370,11 @@ io.on('connection', (socket) => {
     }
   });
 
-  /* ---- หลุดการเชื่อมต่อ: เก็บที่นั่งไว้ชั่วคราว ---- */
+  /* ---- disconnect: keep the seat for a grace period ---- */
 
   socket.on('disconnect', () => {
     const c = ctxOf(socket);
-    if (!c || c.player.socketId !== socket.id) return; // socket เก่าที่ถูกแทนที่แล้ว
+    if (!c || c.player.socketId !== socket.id) return; // stale socket that was already replaced
     const { room, player } = c;
     player.connected = false;
     releaseHeld(room, player);
@@ -384,7 +384,7 @@ io.on('connection', (socket) => {
   });
 });
 
-/* ------------------------------- งานเก็บกวาด ------------------------------- */
+/* ------------------------------- cleanup job ------------------------------- */
 
 setInterval(() => {
   const now = Date.now();

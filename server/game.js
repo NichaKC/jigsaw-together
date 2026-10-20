@@ -6,10 +6,10 @@ const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 
 export function aspectRatio(key) {
   const [w, h] = key.split(':').map(Number);
-  return h / w; // สูง/กว้าง
+  return h / w; // height / width
 }
 
-// เลือกจำนวนแถว/คอลัมน์ให้ชิ้นส่วนเป็นสี่เหลี่ยมใกล้เคียงจัตุรัสที่สุด
+// Pick rows/columns so pieces come out as close to square as possible.
 export function computeGrid(aspectKey, targetPieces) {
   const a = aspectRatio(aspectKey);
   const cols = Math.max(2, Math.round(Math.sqrt(targetPieces / a)));

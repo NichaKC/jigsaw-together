@@ -1,7 +1,7 @@
 import { io } from 'socket.io-client';
 
-// ปกติเว็บกับเซิร์ฟเวอร์อยู่ origin เดียวกัน (dev ผ่าน proxy, prod เสิร์ฟจาก server)
-// ถ้าแยกโฮสต์ ให้ตั้ง VITE_SERVER_URL ตอน build
+// Normally the web app and server share an origin (dev via proxy, prod served by the server).
+// If they're hosted separately, set VITE_SERVER_URL at build time.
 const BASE = import.meta.env.VITE_SERVER_URL || '';
 
 export const socket = io(BASE || undefined);

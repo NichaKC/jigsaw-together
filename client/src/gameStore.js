@@ -1,5 +1,6 @@
-// สถานะเกมที่เปลี่ยนถี่ (ตำแหน่งชิ้นส่วน) เก็บนอก React เพื่อไม่ให้ re-render ทุกครั้งที่ลาก
-// socket event เขียนที่นี่ตั้งแต่เริ่มเกม ส่วน canvas อ่านทุกเฟรม จึงไม่พลาด event ช่วงที่คอมโพเนนต์ยังไม่ mount
+// Fast-changing game state (piece positions) lives outside React so dragging doesn't re-render the UI.
+// Socket events write here from the moment the game starts and the canvas reads it every frame,
+// so no event is lost while the Game component is still mounting.
 export const store = { g: null };
 
 export const clearGame = () => {
@@ -16,12 +17,12 @@ export function initGame(s) {
       ...p,
       row: Math.floor(p.id / s.cols),
       col: p.id % s.cols,
-      dx: p.x, // ตำแหน่งที่วาดจริง (ค่อยๆ เลื่อนเข้าหา x,y เพื่อให้ชิ้นของอีกคนขยับลื่น)
+      dx: p.x, // drawn position (eases toward x,y so other players' pieces move smoothly)
       dy: p.y,
     })),
     startedAt: s.startedAt,
     finishedAt: s.finishedAt,
-    offset: s.serverNow - Date.now(), // ชดเชยนาฬิกาเครื่องกับเซิร์ฟเวอร์
+    offset: s.serverNow - Date.now(), // offset between this device's clock and the server's
     stats: { ...s.stats },
     lockedCount: s.pieces.filter((p) => p.locked).length,
     flashes: [],
@@ -52,7 +53,7 @@ export function applyDrop({ id, x, y, locked, by, stat }) {
   const p = g?.pieces[id];
   if (!p) return;
   p.heldBy = null;
-  if (g.localDragId === id) return; // กำลังลากชิ้นนี้อยู่เอง ไม่ให้เหตุการณ์จากเซิร์ฟเวอร์มาแย่งตำแหน่ง
+  if (g.localDragId === id) return; // we're dragging this piece ourselves; don't let server events fight our position
   p.x = x;
   p.y = y;
   if (locked && !p.locked) markLocked(g, p, by, stat);

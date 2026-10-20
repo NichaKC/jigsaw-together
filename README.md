@@ -1,80 +1,84 @@
-# จิ๊กซอด้วยกัน (jigsaw-coop)
+# Jigsaw Together (jigsaw-coop)
 
-เกมต่อจิ๊กซอร่วมกันแบบเรียลไทม์ 2–4 คน ห้องแยกกันด้วย PIN 6 หลัก
+A real-time cooperative jigsaw puzzle for 2–4 players. Rooms are separated by a 6-digit PIN.
+The interface is in English with a one-click switch to Thai (EN | ไทย).
 
-- **หน้าเว็บ**: Vite + React + HTML5 Canvas (`client/`)
-- **เซิร์ฟเวอร์**: Node.js + Express + Socket.IO (`server/`) เก็บสถานะในหน่วยความจำ ไม่ต้องมีฐานข้อมูล
+- **Web app:** Vite + React + HTML5 Canvas (`client/`)
+- **Server:** Node.js + Express + Socket.IO (`server/`). State is kept in memory, so no database is needed.
 
-## รันบนเครื่อง
+## Run locally
 
-ต้องมี Node.js 18 ขึ้นไป
-
-```bash
-npm install        # ติดตั้งทั้ง server และ client ในครั้งเดียว (npm workspaces)
-npm run dev        # เปิด server (3001) + หน้าเว็บ (5173) พร้อมกัน
-```
-
-เปิด http://localhost:5173 แล้วเปิดอีกแท็บ (หรือหน้าต่าง Incognito) เพื่อเล่นเป็นผู้เล่นคนที่สอง
-แต่ละแท็บถือเป็นคนละคน
-
-**ทดสอบกับมือถือ**: ต่อ Wi-Fi เดียวกับคอม แล้วเปิด `http://<IP ของคอม>:5173`
-(ปุ่ม "ใช้รูปตัวอย่าง" ใน lobby ช่วยให้ทดสอบได้เร็วโดยไม่ต้องหารูป)
+Requires Node.js 18 or newer.
 
 ```bash
-npm run test:smoke   # ทดสอบฝั่งเซิร์ฟเวอร์แบบ end-to-end (สร้างห้อง → เตะ → เริ่มเกม → ต่อจนจบ)
+npm install        # installs server and client together (npm workspaces)
+npm run dev        # starts the server (3001) and the web app (5173)
 ```
 
-## โครงสร้าง
+Open http://localhost:5173, then open a second tab (or an Incognito window) to play as the second player.
+Each tab counts as a separate player.
+
+**Testing on a phone:** join the same Wi-Fi as your computer and open `http://<your computer's IP>:5173`.
+The "Use a sample image" button in the lobby lets you test quickly without hunting for a picture.
+
+```bash
+npm run test:smoke   # end-to-end server test: create room -> kick -> start -> solve
+```
+
+## Project layout
 
 ```
 server/
-  index.js        HTTP + Socket.IO: ห้อง, lobby, เตะ/ออก, อัปโหลดรูป, เหตุการณ์ในเกม
-  rooms.js        โมเดลห้อง/ผู้เล่น, PIN, ข้อมูลที่ส่งให้ client
-  game.js         สร้างชิ้นส่วน, จับ/ย้าย/วาง, ตรวจ snap (เซิร์ฟเวอร์เป็นผู้ตัดสิน)
-  config.js       ค่าตั้งต้นทั้งหมด (จำนวนคนขั้นต่ำ, ความยาก, ระยะ snap ฯลฯ)
-  smoke-test.mjs  ทดสอบอัตโนมัติ
+  index.js        HTTP + Socket.IO: rooms, lobby, kick/leave, image upload, in-game events
+  rooms.js        room/player model, PIN generation, data sent to clients
+  game.js         piece creation, grab/move/drop, snap detection (the server is the referee)
+  config.js       all tunable settings (minimum players, difficulty, snap distance, ...)
+  smoke-test.mjs  automated test
 client/src/
+  i18n.jsx        English and Thai text, language switch (add a language by adding a dictionary)
   screens/        Home, Lobby, Game
-  components/     Cropper (ครอปรูปตามสัดส่วน), Confetti, Logo, Segmented
-  gameStore.js    สถานะชิ้นส่วนที่เปลี่ยนถี่ (อยู่นอก React)
-  useRoom.js      เชื่อม socket กับ React, รีคอนเนกต์อัตโนมัติ
+  components/     Cropper (aspect-ratio crop), Confetti, Logo, Segmented, LangToggle
+  gameStore.js    fast-changing piece state (kept outside React)
+  useRoom.js      connects the socket to React, auto-rejoin
 ```
 
-## กติกา/พฤติกรรมที่ตั้งไว้
+## How it plays
 
-- ผู้สร้างห้องเป็น **หัวหน้าห้อง**: เลือกจำนวนคน (2–4), ความยาก, เตะผู้เล่น, กดเริ่มเกม (เริ่มได้เมื่อมีอย่างน้อย 2 คนและมีรูป)
-- ผู้เล่นทุกคนแนบรูปได้ รูปล่าสุดแทนรูปเดิม ต้องครอปตามสัดส่วนก่อน (1:1, 3:4, 4:3, 5:6, 6:5, 2:3, 3:2, 9:16, 16:9)
-- ผู้เล่นกด **ออกจากห้อง** เองได้ทุกเมื่อ ถ้าหัวหน้าออก สิทธิ์โอนให้คนที่เข้าก่อนถัดไป
-- เกมเริ่มแล้วคนใหม่เข้าไม่ได้
-- ชื่อผู้เล่นตั้งได้ที่หน้าแรกเท่านั้น (ซ้ำกันในห้องจะต่อเลข 2, 3…)
-- ชิ้นที่ถูกจับมีขอบสีของคนนั้น + ป้ายชื่อให้อีกฝั่งเห็น
-- หลุดการเชื่อมต่อ/รีเฟรชแล้วกลับเข้าห้องเดิมได้เอง (lobby รอ 20 วินาที, ระหว่างเล่นรอ 3 นาที)
-- ต่อครบ → กระดาษสีฉลอง สรุปเวลาและจำนวนชิ้นของแต่ละคน และปุ่มกลับหน้าหลัก
+- The room creator is the **host**: sets max players (2–4) and difficulty, kicks players, and starts the game (needs at least 2 players and an image).
+- Anyone in the lobby can add an image; the latest one replaces the previous. It must be cropped to an aspect ratio first (1:1, 3:4, 4:3, 5:6, 6:5, 2:3, 3:2, 9:16, 16:9).
+- Players can leave a room at any time. If the host leaves, host rights pass to the next player who joined.
+- Nobody can join once the game has started.
+- The player name can only be set on the home page (duplicates in a room get " 2", " 3", ...).
+- A piece someone is holding gets a border in that player's color plus a name tag, so everyone sees who is moving what.
+- **The background picture is hidden during play.** The **Show hint** button reveals a faint copy of the picture and the cell grid behind the board; press it again to hide them. The hint is per player. The strength is `HINT_ALPHA` at the top of `client/src/screens/Game.jsx`.
+- If you lose connection or refresh, you rejoin your room automatically (20 seconds of grace in the lobby, 3 minutes during a game).
+- When the puzzle is complete: confetti, a summary of time and pieces placed per player, and a button back to the home page.
 
-ปรับค่าได้ที่ `server/config.js` เช่น `MIN_PLAYERS_TO_START: 1` ถ้าอยากเริ่มเล่นคนเดียวตอนทดสอบ
+Change settings in `server/config.js`, for example `MIN_PLAYERS_TO_START: 1` to start solo while testing.
 
 ## Deploy
 
-ต้องใช้โฮสต์ที่รัน WebSocket ค้างได้ (Render, Railway, Fly.io) — Vercel แบบ serverless ใช้ไม่ได้
-เซิร์ฟเวอร์เสิร์ฟหน้าเว็บที่ build แล้วเองจึงใช้ service เดียว:
+You need a host that keeps WebSocket connections open (Render, Railway, Fly.io). Serverless-style Vercel does not work.
+The server also serves the built web app, so it is a single service:
 
 ```
-Build command:  npm install && npm run build
+Build command:  npm install --include=dev && npm run build
 Start command:  npm start
+Health check:   /healthz
 ```
 
-ถ้าแยกเว็บกับเซิร์ฟเวอร์คนละโดเมน: ตั้ง `VITE_SERVER_URL` ตอน build ฝั่งเว็บ
-และ `CLIENT_ORIGIN` (คั่นหลายโดเมนด้วย `,`) ฝั่งเซิร์ฟเวอร์
+If the web app and server are on different domains, set `VITE_SERVER_URL` at build time for the web app
+and `CLIENT_ORIGIN` (comma-separated for several) on the server.
 
-## ความปลอดภัยที่ทำไว้
+## Security measures
 
-- เซิร์ฟเวอร์ตรวจทุก input (ชื่อ, PIN, ตำแหน่ง, ชนิดไฟล์ — รับเฉพาะ JPEG ตรวจ magic bytes, จำกัด 5 MB)
-- สิทธิ์หัวหน้าห้อง (เริ่มเกม/เตะ/ตั้งค่า) ตรวจฝั่งเซิร์ฟเวอร์เสมอ
-- PIN สุ่มด้วย `crypto.randomInt`, จำกัดจำนวนครั้งที่ลองผิดต่อ IP (8 ครั้ง/นาที) กันเดา PIN
-- `clientId` สำหรับรีคอนเนกต์เป็นความลับ ไม่ส่งให้ผู้เล่นคนอื่น (ผู้เล่นเห็นแค่ id สาธารณะ)
+- The server validates every input (name, PIN, positions, file type: JPEG only, magic bytes checked, 5 MB limit).
+- Host-only actions (start, kick, settings) are always checked on the server.
+- PINs are generated with `crypto.randomInt`, and failed attempts are limited per IP (8 per minute) to prevent PIN guessing.
+- The `clientId` used for reconnecting is a secret and is never sent to other players, who only see a public id.
 
-## ขั้นถัดไปที่ทำต่อได้
+## Ideas for next steps
 
-- รูปทรงจิ๊กซอจริง (ตอนนี้เป็นสี่เหลี่ยม) — วาดด้วย Path2D ใน `Game.jsx` แล้วตรวจ snap เหมือนเดิม
-- ซูม/เลื่อนกระดานบนมือถือ, เสียงตอนชิ้นเข้าที่, เล่นอีกรอบโดยไม่ต้องออกจากห้อง
-- ถ้าจะรันหลายเซิร์ฟเวอร์ ย้ายสถานะห้องไป Redis + Socket.IO Redis adapter
+- Real jigsaw-shaped pieces (currently squares): draw them with Path2D in `Game.jsx`; snap detection stays the same.
+- Zoom and pan on phones, a sound when a piece snaps into place, "play again" without leaving the room.
+- Running more than one server: move room state to Redis and add the Socket.IO Redis adapter.

@@ -1,4 +1,6 @@
-// โลโก้: จิ๊กซอ 4 ชิ้นสี่สีของผู้เล่น เลื่อนมาประกอบกันครั้งเดียวตอนโหลดหน้า
+import { useI18n } from '../i18n.jsx';
+
+// Logo: four jigsaw pieces in the four player colors. They slide together once on page load.
 const TILES = [
   { x: 8, y: 8, color: 'var(--p1)', dx: '-26px', dy: '-26px', rot: '-14deg' },
   { x: 62, y: 8, color: 'var(--p2)', dx: '26px', dy: '-26px', rot: '12deg' },
@@ -13,15 +15,16 @@ const KNOBS = [
 ];
 
 export default function Logo({ size = 112 }) {
+  const { t } = useI18n();
   return (
-    <svg className="logo" width={size} height={size} viewBox="0 0 120 120" role="img" aria-label="จิ๊กซอด้วยกัน">
-      {TILES.map((t, i) => (
+    <svg className="logo" width={size} height={size} viewBox="0 0 120 120" role="img" aria-label={t('app.name')}>
+      {TILES.map((tile, i) => (
         <rect
           key={i}
           className="logo-tile"
-          x={t.x} y={t.y} width="50" height="50" rx="9"
-          fill={t.color}
-          style={{ '--dx': t.dx, '--dy': t.dy, '--rot': t.rot, animationDelay: `${i * 70}ms` }}
+          x={tile.x} y={tile.y} width="50" height="50" rx="9"
+          fill={tile.color}
+          style={{ '--dx': tile.dx, '--dy': tile.dy, '--rot': tile.rot, animationDelay: `${i * 70}ms` }}
         />
       ))}
       {KNOBS.map((k, i) => (

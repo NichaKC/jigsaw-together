@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { CONFIG, DIFFICULTIES, PLAYER_COLORS } from './config.js';
 import { computeGrid } from './game.js';
 
-export const rooms = new Map(); // pin -> room (เก็บในหน่วยความจำ)
+export const rooms = new Map(); // pin -> room (kept in memory)
 
 export function cleanName(raw) {
   if (typeof raw !== 'string') return '';
@@ -47,8 +47,8 @@ export function addPlayer(room, { clientId, socketId, name }) {
   const used = new Set(room.players.map((p) => p.color));
   const free = PLAYER_COLORS.filter((c) => !used.has(c));
   const player = {
-    id: crypto.randomBytes(6).toString('hex'), // id สาธารณะ (ส่งให้คนอื่นเห็นได้)
-    clientId, // ความลับ ใช้พิสูจน์ตัวตนตอนรีคอนเนกต์ ห้ามส่งออกไป
+    id: crypto.randomBytes(6).toString('hex'), // public id (safe to share with other players)
+    clientId, // secret: proves identity on reconnect, never sent to clients
     socketId,
     name: uniqueName(room, name),
     color: free[crypto.randomInt(free.length)],
